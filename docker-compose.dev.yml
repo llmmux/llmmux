@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  llmmux:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+    env_file:
+      - .env.development
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    command: npm run start:dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - vllm-server-1
+      - vllm-server-2
+
+  # Mock vLLM servers for development
+  vllm-server-1:
+    image: nginx:alpine
+    ports:
+      - "8000:80"
+    volumes:
+      - ./dev/mock-vllm-1.conf:/etc/nginx/nginx.conf
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/v1/models"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  vllm-server-2:
+    image: nginx:alpine
+    ports:
+      - "8001:80"
+    volumes:
+      - ./dev/mock-vllm-2.conf:/etc/nginx/nginx.conf
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/v1/models"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
