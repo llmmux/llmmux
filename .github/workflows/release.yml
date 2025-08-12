@@ -52,10 +52,11 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=${{ github.ref }}
+        cache-to: type=gha,mode=max,scope=${{ github.ref }}
 
     - name: 📝 Update Docker Hub Description
+      if: false  # Temporarily disabled until Docker Hub secrets are configured
       uses: peter-evans/dockerhub-description@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
