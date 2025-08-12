@@ -10,13 +10,14 @@
   [![NestJS](https://img.shields.io/badge/NestJS-10.0.0-red.svg)](https://nestjs.com/)
 </div>
 
-A production-ready LLM multiplexer and proxy that provides an OpenAI-compatible API for vLLM servers with advanced features including function calling transformation and health monitoring.
+A production-ready LLM multiplexer and proxy that provides an OpenAI-compatible API for various LLM backends with advanced features including function calling transformation and health monitoring.
 
-> **Disclaimer**: This project is an independent LLM multiplexer for vLLM servers and is not affiliated with or endorsed by the vLLM project. vLLM is a trademark of its respective owners.
+> **Disclaimer**: This project is an independent LLM multiplexer and proxy service. It is not affiliated with or endorsed by any LLM engine providers. All mentioned technologies and trademarks are the property of their respective owners.
 
 ## 🚀 Features
 
 - **OpenAI-Compatible API**: Full compatibility with OpenAI's chat completions and models endpoints
+- **Multi-Backend Support**: Support for various OpenAI-compatible LLM engines and providers
 - **Function Calling Support**: Native function calling support (tested with Qwen models) + automatic transformation for GPT-OSS models (work in progress)
 - **Streaming & Non-Streaming**: Supports both real-time streaming and standard responses
 - **Health Monitoring**: Built-in health checks for all backend servers

@@ -1,4 +1,11 @@
-# 🚀 LLMMux Deployment Guide
+# 🚀 LLMMux D# Latest stable
+docker pull llmmux/llmmux:latest
+
+# Specific version
+docker pull llmmux/llmmux:v0.1.0
+
+# Development builds
+docker pull llmmux/llmmux:devt Guide
 
 <div align="center">
   <img src="../assets/llmmux-logo.png" alt="LLMMux Logo" width="120" height="120">
@@ -42,7 +49,7 @@ metadata:
   name: llmmux
   labels:
     app.kubernetes.io/name: llmmux
-    app.kubernetes.io/version: "1.1.0"
+    app.kubernetes.io/version: "0.1.0"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -66,7 +73,7 @@ metadata:
   namespace: llmmux
   labels:
     app: llmmux
-    version: v1.1.0
+    version: v0.1.0
 spec:
   replicas: 3
   strategy:
@@ -81,11 +88,11 @@ spec:
     metadata:
       labels:
         app: llmmux
-        version: v1.1.0
+        version: v0.1.0
     spec:
       containers:
       - name: llmmux
-        image: ralmalki/llmmux:v1.1.0
+        image: llmmux/llmmux:v0.1.0
         ports:
         - containerPort: 8080
           name: http

@@ -1,18 +1,12 @@
 {
   "name": "llmmux",
-  "version": "1.1.0",
-  "description": "Production-ready LLM multiplexer and proxy with OpenAI-compatible API, automatic model discovery, function calling, and health monitoring",
+  "version": "0.1.0",
+  "description": "Production-ready LLM multiplexer and proxy with OpenAI-compatible API, multi-backend support, function calling, and health monitoring",
   "author": "ralmalki",
   "private": false,
   "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://llmmux.ai",
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/llmmux/llmmux.git"
-  },
-  "bugs": {
-    "url": "https://github.com/llmmux/llmmux/issues"
-  },
     "type": "git",
     "url": "git+https://github.com/llmmux/llmmux.git"
   },

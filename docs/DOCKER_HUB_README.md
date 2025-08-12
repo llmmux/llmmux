@@ -19,6 +19,7 @@ docker run -d
 
 🔗 **OpenAI-Compatible API** - Drop-in replacement for OpenAI endpoints  
 🧠 **Function Calling** - Native support with automatic transformation  
+🌐 **Multi-Backend Support** - Support for various OpenAI-compatible LLM engines  
 📡 **Auto-Discovery** - Automatically detects available models  
 💪 **Production-Ready** - Health monitoring, authentication, CORS  
 🧪 **Well-Tested** - 78 unit tests across 8 test suites  
