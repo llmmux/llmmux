@@ -39,24 +39,24 @@ describe('ModelDiscoveryService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('parseVllmServers', () => {
-    it('should parse VLLM_SERVERS configuration', () => {
+  describe('parseInferenceServers', () => {
+    it('should parse INFERENCE_SERVERS configuration', () => {
       const mockGet = jest.fn().mockReturnValue('localhost:8000,remote:8001');
       (configService.get as jest.Mock) = mockGet;
 
       const _testService = new ModelDiscoveryService(configService);
-      expect(mockGet).toHaveBeenCalledWith('VLLM_SERVERS', '');
+      expect(mockGet).toHaveBeenCalledWith('INFERENCE_SERVERS', '');
     });
 
-    it('should fallback to BACKENDS configuration when VLLM_SERVERS empty', () => {
+    it('should fallback to BACKENDS configuration when INFERENCE_SERVERS empty', () => {
       const mockGet = jest.fn()
-        .mockReturnValueOnce('') // VLLM_SERVERS
+        .mockReturnValueOnce('') // INFERENCE_SERVERS
         .mockReturnValueOnce('model1:localhost:8000,model2:remote:8001'); // BACKENDS
 
       (configService.get as jest.Mock) = mockGet;
 
       const _testService = new ModelDiscoveryService(configService);
-      expect(mockGet).toHaveBeenCalledWith('VLLM_SERVERS', '');
+      expect(mockGet).toHaveBeenCalledWith('INFERENCE_SERVERS', '');
       expect(mockGet).toHaveBeenCalledWith('BACKENDS', '');
     });
 

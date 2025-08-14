@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import axios from "axios";
 import { BackendConfig, ModelInfo } from "../types";
 
-interface VllmServerConfig {
+interface InferenceServerConfig {
   host: string;
   port: number;
   baseUrl: string;
@@ -13,55 +13,55 @@ interface VllmServerConfig {
 export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ModelDiscoveryService.name);
   private discoveredBackends: Map<string, BackendConfig> = new Map();
-  private vllmServers: VllmServerConfig[] = [];
+  private inferenceServers: InferenceServerConfig[] = [];
   private discoveryInterval: ReturnType<typeof setInterval> | null = null;
   private readonly DISCOVERY_INTERVAL_MS = 30000; // 30 seconds
   private readonly REQUEST_TIMEOUT_MS = 5000; // 5 seconds
 
   constructor(private configService: ConfigService) {
-    this.parseVllmServers();
+    this.parseInferenceServers();
   }
 
   async onModuleInit() {
-    if (this.vllmServers.length > 0) {
+    if (this.inferenceServers.length > 0) {
       this.logger.log(
-        `Starting model discovery for ${this.vllmServers.length} vLLM servers`,
+        `Starting model discovery for ${this.inferenceServers.length} inference servers`,
       );
       await this.discoverModels();
       this.startPeriodicDiscovery();
     } else {
-      this.logger.log("No vLLM servers configured for auto-discovery");
+      this.logger.log("No inference servers configured for auto-discovery");
     }
   }
 
-  private parseVllmServers(): void {
-    // Support both old BACKENDS format and new VLLM_SERVERS format
-    const vllmServersConfig = this.configService.get<string>(
-      "VLLM_SERVERS",
+  private parseInferenceServers(): void {
+    // Support both old BACKENDS format and new INFERENCE_SERVERS format
+    const inferenceServersConfig = this.configService.get<string>(
+      "INFERENCE_SERVERS",
       "",
     );
 
-    if (vllmServersConfig) {
+    if (inferenceServersConfig) {
       // New format: host:port,host:port
-      const serverEntries = vllmServersConfig.split(",");
+      const serverEntries = inferenceServersConfig.split(",");
 
       for (const entry of serverEntries) {
         const [host, port] = entry.trim().split(":");
 
         if (!host || !port) {
-          this.logger.warn(`Invalid vLLM server configuration: ${entry}`);
+          this.logger.warn(`Invalid inference server configuration: ${entry}`);
           continue;
         }
 
-        const serverConfig: VllmServerConfig = {
+        const serverConfig: InferenceServerConfig = {
           host: host.trim(),
           port: parseInt(port.trim()),
           baseUrl: `http://${host.trim()}:${port.trim()}/v1`,
         };
 
-        this.vllmServers.push(serverConfig);
+        this.inferenceServers.push(serverConfig);
         this.logger.log(
-          `Added vLLM server for discovery: ${serverConfig.baseUrl}`,
+          `Added inference server for discovery: ${serverConfig.baseUrl}`,
         );
       }
     } else {
@@ -76,23 +76,23 @@ export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
             const host = parts[parts.length - 2];
             const port = parts[parts.length - 1];
 
-            const serverConfig: VllmServerConfig = {
+            const serverConfig: InferenceServerConfig = {
               host: host.trim(),
               port: parseInt(port.trim()),
               baseUrl: `http://${host.trim()}:${port.trim()}/v1`,
             };
 
             // Avoid duplicates
-            const exists = this.vllmServers.some(
+            const exists = this.inferenceServers.some(
               (server) =>
                 server.host === serverConfig.host &&
                 server.port === serverConfig.port,
             );
 
             if (!exists) {
-              this.vllmServers.push(serverConfig);
+              this.inferenceServers.push(serverConfig);
               this.logger.log(
-                `Extracted vLLM server from BACKENDS: ${serverConfig.baseUrl}`,
+                `Extracted inference server from BACKENDS: ${serverConfig.baseUrl}`,
               );
             }
           }
@@ -102,14 +102,14 @@ export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async discoverModels(): Promise<void> {
-    const discoveryPromises = this.vllmServers.map((server) =>
+    const discoveryPromises = this.inferenceServers.map((server) =>
       this.discoverModelsFromServer(server),
     );
 
     try {
       await Promise.allSettled(discoveryPromises);
       this.logger.log(
-        `Discovery completed. Found ${this.discoveredBackends.size} models across ${this.vllmServers.length} servers`,
+        `Discovery completed. Found ${this.discoveredBackends.size} models across ${this.inferenceServers.length} servers`,
       );
     } catch (error) {
       this.logger.error("Error during model discovery", error);
@@ -117,7 +117,7 @@ export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async discoverModelsFromServer(
-    server: VllmServerConfig,
+    server: InferenceServerConfig,
   ): Promise<void> {
     try {
       this.logger.debug(`Discovering models from ${server.baseUrl}`);
@@ -161,7 +161,7 @@ export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
-          this.logger.warn(`vLLM server not reachable: ${server.baseUrl}`);
+          this.logger.warn(`Inference server not reachable: ${server.baseUrl}`);
         } else {
           this.logger.warn(
             `Error discovering models from ${server.baseUrl}: ${error.message}`,
@@ -220,7 +220,7 @@ export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
     lastDiscovery: Date;
   } {
     return {
-      serversConfigured: this.vllmServers.length,
+      serversConfigured: this.inferenceServers.length,
       modelsDiscovered: this.discoveredBackends.size,
       lastDiscovery: new Date(),
     };
