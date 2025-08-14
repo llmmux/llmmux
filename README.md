@@ -219,20 +219,26 @@ Requests are automatically routed to the correct backend server based on the mod
 
 ### Quick Start with Authentication
 
+> 📚 **For detailed setup instructions**, see [Initial Setup Guide](./docs/INITIAL_SETUP.md)
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/llmmux/llmmux.git
 cd llmmux
 
-# 2. Setup and deploy with authentication
+# 2. Configure environment variables (REQUIRED)
+cp .env.example .env
+# Edit .env and set ADMIN_PASSWORD=YourSecurePassword123!
+
+# 3. Setup and deploy with authentication
 ./scripts/deploy.sh setup    # Setup environment and build
 ./scripts/deploy.sh start    # Start all services
 ./scripts/deploy.sh admin    # Create admin user
 
-# 3. Login and get JWT token
+# 4. Login and get JWT token
 curl -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "your-password"}'
+  -d '{"username": "superadmin", "password": "YourSecurePassword123!"}'
 ```
 
 ### Docker Compose (Production)
