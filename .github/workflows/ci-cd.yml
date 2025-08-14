@@ -118,24 +118,6 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
 
-  # Release workflow (maintainer only)
-  release:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.repository == 'llmmux/llmmux'
-    permissions:
-      contents: write
-      packages: write
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ github.run_number }}
-        release_name: Release v${{ github.run_number }}
-        draft: true
-        prerelease: true
+  # Note: Releases are now handled by dedicated release workflows
+  # - prepare-release.yml: Creates release PRs and prepares versions
+  # - release.yml: Builds and publishes releases when tags are pushed

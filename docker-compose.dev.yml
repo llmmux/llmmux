@@ -35,7 +35,7 @@ services:
       - DATABASE_URL=mysql://llmmux_dev:dev_password@mysql:3306/llmmux_dev
       - JWT_SECRET=dev-jwt-secret-key
     env_file:
-      - .env.development
+      - .env.dev
     volumes:
       - .:/workspace
       - /workspace/node_modules

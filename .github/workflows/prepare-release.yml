@@ -1,0 +1,201 @@
+name: 🔖 Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.3.1)'
+        required: true
+        type: string
+      release_type:
+        description: 'Type of release'
+        required: true
+        type: choice
+        default: 'minor'
+        options:
+          - 'patch'
+          - 'minor'
+          - 'major'
+          - 'prerelease'
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - name: 🛒 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 🏗️ Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🔍 Validate version format
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9-]+)?$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected format: X.Y.Z or X.Y.Z-prerelease"
+          exit 1
+        fi
+        echo "✅ Version format is valid: $VERSION"
+
+    - name: 📝 Update package.json version
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        npm version "$VERSION" --no-git-tag-version
+        echo "✅ Updated package.json to version $VERSION"
+
+    - name: 📝 Create draft release notes
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        RELEASE_NOTES_FILE="docs/releases/RELEASE_NOTES_v${VERSION}.md"
+        
+        # Ensure the releases directory exists
+        mkdir -p docs/releases
+        
+        if [ ! -f "$RELEASE_NOTES_FILE" ]; then
+          echo "Creating draft release notes for v$VERSION..."
+          
+          echo "# vLLM Router v$VERSION Release Notes" > "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "## 🎯 Major Features" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "### **New Feature 1**" >> "$RELEASE_NOTES_FILE"
+          echo "- Description of new feature" >> "$RELEASE_NOTES_FILE"
+          echo "- Key capabilities and benefits" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "### **New Feature 2**" >> "$RELEASE_NOTES_FILE"
+          echo "- Description of another feature" >> "$RELEASE_NOTES_FILE"
+          echo "- Integration details" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "## ⚠️ Breaking Changes" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "### **Breaking Change Description**" >> "$RELEASE_NOTES_FILE"
+          echo "- What changed and why" >> "$RELEASE_NOTES_FILE"
+          echo "- Migration instructions for users" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "## 📦 Migration Guide" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "### For New Installations" >> "$RELEASE_NOTES_FILE"
+          echo "1. Follow the updated installation guide" >> "$RELEASE_NOTES_FILE"
+          echo "2. Configure environment variables" >> "$RELEASE_NOTES_FILE"
+          echo "3. Set up database connections" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "### For Existing Users" >> "$RELEASE_NOTES_FILE"
+          echo "1. Backup your current configuration" >> "$RELEASE_NOTES_FILE"
+          echo "2. Update Docker Compose files" >> "$RELEASE_NOTES_FILE"
+          echo "3. Run database migrations" >> "$RELEASE_NOTES_FILE"
+          echo "4. Update API keys if needed" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "## 🛠️ Technical Improvements" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "- Performance enhancements" >> "$RELEASE_NOTES_FILE"
+          echo "- Bug fixes and stability improvements" >> "$RELEASE_NOTES_FILE"
+          echo "- Code quality and security updates" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "## 📚 Documentation Updates" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "- Updated API documentation" >> "$RELEASE_NOTES_FILE"
+          echo "- New deployment guides" >> "$RELEASE_NOTES_FILE"
+          echo "- Enhanced troubleshooting section" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "---" >> "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.2.0...v$VERSION" >> "$RELEASE_NOTES_FILE"
+          
+          echo "✅ Created draft release notes: $RELEASE_NOTES_FILE"
+        else
+          echo "✅ Release notes already exist: $RELEASE_NOTES_FILE"
+        fi
+
+    - name: 🔀 Create release branch and commit changes
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        BRANCH="release/v$VERSION"
+        
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git checkout -b "$BRANCH"
+        git add .
+        git commit -m "chore: prepare release v$VERSION
+
+        - Update package.json version to $VERSION
+        - Create/update release notes
+
+        Co-authored-by: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>"
+        
+        git push origin "$BRANCH"
+        echo "✅ Created release branch: $BRANCH"
+
+    - name: 🔄 Create Pull Request
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const version = '${{ github.event.inputs.version }}';
+          const releaseType = '${{ github.event.inputs.release_type }}';
+          const branch = `release/v${version}`;
+          
+          const { data: pr } = await github.rest.pulls.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `🔖 Release v${version}`,
+            head: branch,
+            base: 'main',
+            body: `## Release Preparation for v${version}
+          
+          This PR prepares the release for version \`v${version}\` (${releaseType} release).
+          
+          ### Changes included:
+          - 📦 Updated \`package.json\` version to \`${version}\`
+          - 📄 Created/updated release notes in \`docs/releases/RELEASE_NOTES_v${version}.md\`
+          
+          ### Before merging:
+          1. 📝 Review and update the release notes with actual features
+          2. 🧪 Ensure all tests pass
+          3. 📖 Update documentation if needed
+          4. ✅ Verify Docker builds work correctly
+          
+          ### After merging:
+          The release workflow will automatically:
+          - 🏷️ Create a git tag \`v${version}\`
+          - 📦 Build and push Docker images to GHCR and Docker Hub
+          - 🚀 Create a GitHub release with notes
+          - 📢 Publish to package registries
+          
+          **Note**: This is an automated PR created by the release preparation workflow.`,
+            draft: false
+          });
+          
+          console.log(`✅ Created PR #${pr.number}: ${pr.html_url}`);
+
+    - name: 📋 Summary
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        echo "🎉 Release preparation completed for v$VERSION!"
+        echo ""
+        echo "📋 Next steps:"
+        echo "1. 📝 Review the created Pull Request"
+        echo "2. ✏️ Edit docs/releases/RELEASE_NOTES_v$VERSION.md with actual release content"
+        echo "3. ✅ Merge the PR when ready"
+        echo "4. 🏷️ Create and push the git tag to trigger release"
+        echo ""
+        echo "🔗 To trigger the release after merging:"
+        echo "   git tag v$VERSION && git push origin v$VERSION"
+        echo ""
+        echo "🚀 The release workflow will handle:"
+        echo "   - Docker image building and publishing"
+        echo "   - GitHub release creation"
+        echo "   - Registry publishing"
