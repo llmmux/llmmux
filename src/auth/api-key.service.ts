@@ -326,7 +326,7 @@ export class ApiKeyService {
     return result || undefined;
   }
 
-  recordKeyUsage(apiKey: string): Promise<void> {
+  recordKeyUsage(_apiKey: string): Promise<void> {
     // This is handled automatically in getApiKey method
     return Promise.resolve();
   }

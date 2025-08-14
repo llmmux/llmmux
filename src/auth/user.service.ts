@@ -268,7 +268,7 @@ export class UserService {
       }
 
       return user;
-    } catch (_error) {
+    } catch {
       throw new UnauthorizedException('Invalid token');
     }
   }
