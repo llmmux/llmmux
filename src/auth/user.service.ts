@@ -220,7 +220,7 @@ export class UserService {
 
   // Sanitize user data for API responses - removes sensitive fields
   private sanitizeUserResponse(user: UserWithRoles): any {
-    const { password, createdById, updatedAt, ...sanitizedUser } = user;
+    const { password: _password, createdById: _createdById, updatedAt: _updatedAt, ...sanitizedUser } = user;
     return {
       ...sanitizedUser,
       roles: user.userRoles
@@ -231,7 +231,7 @@ export class UserService {
 
   // Sanitize user data for profile responses - includes permissions
   private sanitizeUserProfile(user: UserWithRoles): any {
-    const { password, createdById, updatedAt, ...sanitizedUser } = user;
+    const { password: _password, createdById: _createdById, updatedAt: _updatedAt, ...sanitizedUser } = user;
     const activeRoles = user.userRoles
       .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()));
     
@@ -268,7 +268,7 @@ export class UserService {
       }
 
       return user;
-    } catch (error) {
+    } catch (_error) {
       throw new UnauthorizedException('Invalid token');
     }
   }

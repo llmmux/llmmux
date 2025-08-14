@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ModelsController } from './models.controller';
 import { ConfigurationService } from '../config/configuration.service';
+import { ApiKeyService } from '../auth/api-key.service';
+import { Reflector } from '@nestjs/core';
+import { AuthGuard } from '../auth/auth.guard';
 
 describe('ModelsController', () => {
   let controller: ModelsController;
@@ -18,6 +21,20 @@ describe('ModelsController', () => {
             forceModelDiscovery: jest.fn(),
           },
         },
+        {
+          provide: ApiKeyService,
+          useValue: {
+            validateApiKey: jest.fn(),
+            hasModelAccess: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
+          provide: AuthGuard,
+          useValue: {
+            canActivate: jest.fn().mockReturnValue(true),
+          },
+        },
+        Reflector,
       ],
     }).compile();
 
