@@ -75,8 +75,9 @@ async function seedDatabase() {
       throw new Error('SUPER_ADMIN role not found');
     }
 
-    const existingAdmin = await prisma.user.findFirst({
-      where: { roleId: superAdminRole.id }
+    // Check if super admin already exists by email (simpler approach)
+    const existingAdmin = await prisma.user.findUnique({
+      where: { email: 'admin@llmmux.com' }
     });
 
     if (!existingAdmin) {
@@ -85,10 +86,19 @@ async function seedDatabase() {
 
       const admin = await prisma.user.create({
         data: {
-          username: 'superadmin',
+          firstName: 'Super',
+          lastName: 'Admin',
           email: 'admin@llmmux.com',
-          password: hashedPassword,
-          roleId: superAdminRole.id
+          password: hashedPassword
+        }
+      });
+
+      // Assign SUPER_ADMIN role to the user using the correct model name
+      await (prisma as any).userRole.create({
+        data: {
+          userId: admin.id,
+          roleId: superAdminRole.id,
+          isActive: true
         }
       });
 
@@ -100,7 +110,8 @@ async function seedDatabase() {
           entityType: 'USER',
           entityId: admin.id.toString(),
           newValues: {
-            username: admin.username,
+            firstName: admin.firstName,
+            lastName: admin.lastName,
             email: admin.email,
             role: 'SUPER_ADMIN'
           },
@@ -110,7 +121,7 @@ async function seedDatabase() {
       });
 
       console.log('✅ Initial super admin user created successfully!');
-      console.log('Username:', admin.username);
+      console.log('Name:', `${admin.firstName} ${admin.lastName}`);
       console.log('Email:', admin.email);
       console.log('Password:', adminPassword);
       console.log('Role: SUPER_ADMIN');
@@ -126,7 +137,7 @@ async function seedDatabase() {
 
     if (adminRole) {
       const existingRegularAdmin = await prisma.user.findUnique({
-        where: { username: 'admin' }
+        where: { email: 'regular.admin@example.com' }
       });
 
       if (!existingRegularAdmin) {
@@ -135,10 +146,19 @@ async function seedDatabase() {
 
         const admin = await prisma.user.create({
           data: {
-            username: 'admin',
-            email: 'admin@example.com',
-            password: hashedPassword,
-            roleId: adminRole.id
+            firstName: 'Regular',
+            lastName: 'Admin',
+            email: 'regular.admin@example.com',
+            password: hashedPassword
+          }
+        });
+
+        // Assign ADMIN role to the user
+        await prisma.userRole.create({
+          data: {
+            userId: admin.id,
+            roleId: adminRole.id,
+            isActive: true
           }
         });
 
@@ -150,7 +170,8 @@ async function seedDatabase() {
             entityType: 'USER',
             entityId: admin.id.toString(),
             newValues: {
-              username: admin.username,
+              firstName: admin.firstName,
+              lastName: admin.lastName,
               email: admin.email,
               role: 'ADMIN'
             },
@@ -160,7 +181,7 @@ async function seedDatabase() {
         });
 
         console.log('✅ Regular admin user created successfully!');
-        console.log('Username:', admin.username);
+        console.log('Name:', `${admin.firstName} ${admin.lastName}`);
         console.log('Email:', admin.email);
         console.log('Password:', adminPassword);
         console.log('Role: ADMIN');

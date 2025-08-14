@@ -16,37 +16,63 @@ model Role {
   name        String   @unique @db.VarChar(50)  // USER, ADMIN, SUPER_ADMIN
   description String?  @db.Text
   permissions Json?    // Array of permissions/capabilities
+  priority    Int      @default(0)  // Higher number = higher priority for role hierarchy
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   // Relations
-  users       User[]
+  userRoles   UserRole[] // Many-to-many relationship with users
   
   @@map("roles")
 }
 
 // User management and authentication
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique @db.VarChar(50)
-  email     String   @unique @db.VarChar(255)
-  password  String   @db.VarChar(255)  // Hashed password
-  roleId    Int      @default(1)       // Foreign key to Role (default: USER role)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lastLogin DateTime?
-  createdById Int?    // Who created this user (for audit trail)
+  id          Int      @id @default(autoincrement())
+  firstName   String   @db.VarChar(100)  // User's first name
+  lastName    String   @db.VarChar(100)  // User's last name
+  email       String   @unique @db.VarChar(255)  // Primary login identifier
+  password    String   @db.VarChar(255)  // Hashed password
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLogin   DateTime?
+  createdById Int?     // Who created this user (for audit trail)
   
   // Relations
-  role           Role     @relation(fields: [roleId], references: [id])
-  createdBy      User?    @relation("UserCreatedBy", fields: [createdById], references: [id])
-  createdUsers   User[]   @relation("UserCreatedBy")
-  createdApiKeys ApiKey[] @relation("CreatedBy")
+  createdBy      User?      @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers   User[]     @relation("UserCreatedBy")
+  createdApiKeys ApiKey[]   @relation("CreatedBy")
   userLogs       UserLog[]
+  userRoles      UserRole[] // Many-to-many relationship with roles
+  assignedRoles  UserRole[] @relation("RoleAssignedBy") // Roles this user assigned to others
   
   @@map("users")
+}
+
+// Junction table for many-to-many User-Role relationship
+model UserRole {
+  id          Int       @id @default(autoincrement())
+  userId      Int       // Foreign key to User
+  roleId      Int       // Foreign key to Role
+  assignedBy  Int?      // Who assigned this role (for audit)
+  assignedAt  DateTime  @default(now())
+  expiresAt   DateTime? // Optional expiration date for temporary roles
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedByUser User?  @relation("RoleAssignedBy", fields: [assignedBy], references: [id])
+  
+  // Ensure unique active role assignments per user
+  @@unique([userId, roleId])
+  @@index([userId, isActive])
+  @@index([roleId, isActive])
+  @@map("user_roles")
 }
 
 // User activity and management audit log
