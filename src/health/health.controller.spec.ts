@@ -9,9 +9,10 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 describe("HealthController", () => {
   let controller: HealthController;
   let configurationService: ConfigurationService;
+  let module: TestingModule;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
         {
@@ -28,6 +29,10 @@ describe("HealthController", () => {
     configurationService = module.get<ConfigurationService>(ConfigurationService);
 
     jest.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    await module.close();
   });
 
   it("should be defined", () => {

@@ -9,9 +9,10 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 describe('ModelDiscoveryService', () => {
   let service: ModelDiscoveryService;
   let configService: ConfigService;
+  let module: TestingModule;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         ModelDiscoveryService,
         {
@@ -29,8 +30,9 @@ describe('ModelDiscoveryService', () => {
     jest.clearAllMocks();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     service.stopPeriodicDiscovery();
+    await module.close();
   });
 
   it('should be defined', () => {
@@ -42,7 +44,7 @@ describe('ModelDiscoveryService', () => {
       const mockGet = jest.fn().mockReturnValue('localhost:8000,remote:8001');
       (configService.get as jest.Mock) = mockGet;
 
-      const testService = new ModelDiscoveryService(configService);
+      const _testService = new ModelDiscoveryService(configService);
       expect(mockGet).toHaveBeenCalledWith('VLLM_SERVERS', '');
     });
 
@@ -53,7 +55,7 @@ describe('ModelDiscoveryService', () => {
 
       (configService.get as jest.Mock) = mockGet;
 
-      const testService = new ModelDiscoveryService(configService);
+      const _testService = new ModelDiscoveryService(configService);
       expect(mockGet).toHaveBeenCalledWith('VLLM_SERVERS', '');
       expect(mockGet).toHaveBeenCalledWith('BACKENDS', '');
     });

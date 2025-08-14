@@ -8,9 +8,10 @@ import { AuthGuard } from '../auth/auth.guard';
 describe('ModelsController', () => {
   let controller: ModelsController;
   let configurationService: ConfigurationService;
+  let module: TestingModule;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       controllers: [ModelsController],
       providers: [
         {
@@ -40,6 +41,10 @@ describe('ModelsController', () => {
 
     controller = module.get<ModelsController>(ModelsController);
     configurationService = module.get<ConfigurationService>(ConfigurationService);
+  });
+
+  afterEach(async () => {
+    await module.close();
   });
 
   it('should be defined', () => {
