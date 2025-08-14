@@ -22,10 +22,10 @@ export interface RoleType {
 
 export interface UserType {
   id: number;
-  username: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  roleId: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -34,37 +34,48 @@ export interface UserType {
 }
 
 export interface CreateUserDto {
-  username: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  roleId?: number;
+  roleIds?: number[]; // Array of role IDs for multiple roles
 }
 
 export interface LoginDto {
-  username: string;
+  email: string;  // Email-only authentication
   password: string;
 }
 
-export interface UserWithRole extends UserType {
-  role: RoleType;
+export interface UserWithRoles extends UserType {
+  userRoles: Array<{
+    id: number;
+    roleId: number;
+    isActive: boolean;
+    assignedAt: Date;
+    expiresAt?: Date;
+    role: RoleType;
+  }>;
 }
 
-export interface LoginResponse {
+export interface LoginResult {
+  access_token: string;
   user: {
     id: number;
-    username: string;
+    firstName: string;
+    lastName: string;
     email: string;
-    role: string;
+    roles: string[]; // Array of role names
     isActive: boolean;
     createdAt: Date;
     lastLogin: Date | null;
   };
-  token: string;
 }
 
 export interface JwtPayload {
   userId: number;
-  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
   roleId: number;
   roleName: string;
   permissions: string[];
@@ -76,30 +87,25 @@ export interface JwtPayload {
 export class UserService {
   constructor(private readonly prisma: DatabaseService) {}
 
-  async createUser(createUserDto: CreateUserDto, createdById?: number): Promise<UserWithRole> {
-    const { username, email, password, roleId } = createUserDto;
+  async createUser(createUserDto: CreateUserDto, createdById?: number): Promise<UserWithRoles> {
+    const { firstName, lastName, email, password, roleIds = [1] } = createUserDto; // Default to USER role (id: 1)
 
     // Check if user already exists
     const existingUser = await (this.prisma as any).user.findFirst({
-      where: {
-        OR: [
-          { username },
-          { email }
-        ]
-      }
+      where: { email }
     });
 
     if (existingUser) {
-      throw new ConflictException('Username or email already exists');
+      throw new ConflictException('Email already exists');
     }
 
-    // Validate role exists
-    const role = await (this.prisma as any).role.findUnique({
-      where: { id: roleId || 1 } // Default to USER role (id: 1)
+    // Validate roles exist
+    const roles = await (this.prisma as any).role.findMany({
+      where: { id: { in: roleIds } }
     });
 
-    if (!role) {
-      throw new NotFoundException('Role not found');
+    if (roles.length !== roleIds.length) {
+      throw new NotFoundException('One or more roles not found');
     }
 
     // Hash password
@@ -108,16 +114,34 @@ export class UserService {
     // Create user
     const user = await (this.prisma as any).user.create({
       data: {
-        username,
+        firstName,
+        lastName,
         email,
         password: hashedPassword,
-        roleId: roleId || 1,
         createdById
       },
       include: {
-        role: true
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true }
+        }
       }
     });
+
+    // Assign roles to user
+    for (const roleId of roleIds) {
+      await (this.prisma as any).userRole.create({
+        data: {
+          userId: user.id,
+          roleId,
+          assignedBy: createdById,
+          isActive: true
+        }
+      });
+    }
+
+    // Fetch user with roles
+    const userWithRoles = await this.getUserById(user.id);
 
     // Log user creation
     await this.logUserAction({
@@ -127,25 +151,38 @@ export class UserService {
       entityType: 'USER',
       entityId: user.id.toString(),
       newValues: {
-        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
-        role: role.name
+        roles: roles.map(r => r.name)
       }
     });
 
-    return user;
+    return userWithRoles!;
   }
 
-  async login(loginDto: LoginDto): Promise<LoginResponse> {
-    const { username, password } = loginDto;
+  async login(loginDto: LoginDto): Promise<LoginResult> {
+    const { email, password } = loginDto;
 
-    // Find user with role
+    // Find user with roles
     const user = await (this.prisma as any).user.findUnique({
-      where: { username },
-      include: { role: true }
+      where: { email },
+      include: {
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true }
+        }
+      }
     });
 
     if (!user || !user.isActive) {
+      // Log failed login attempt
+      await this.logUserAction({
+        userId: user?.id || 0,
+        action: 'LOGIN_FAILED',
+        success: false,
+        errorMessage: `Invalid credentials for email: ${email}`
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -178,35 +215,52 @@ export class UserService {
       success: true
     });
 
-    return { user: this.sanitizeUserResponse(user), token };
+    return { access_token: token, user: this.sanitizeUserResponse(user) };
   }
 
   // Sanitize user data for API responses - removes sensitive fields
-  private sanitizeUserResponse(user: UserWithRole): any {
-    const { password, createdById, updatedAt, roleId, ...sanitizedUser } = user;
+  private sanitizeUserResponse(user: UserWithRoles): any {
+    const { password, createdById, updatedAt, ...sanitizedUser } = user;
     return {
       ...sanitizedUser,
-      role: user.role.name
+      roles: user.userRoles
+        .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()))
+        .map(ur => ur.role.name)
     };
   }
 
   // Sanitize user data for profile responses - includes permissions
-  private sanitizeUserProfile(user: UserWithRole): any {
-    const { password, createdById, updatedAt, roleId, ...sanitizedUser } = user;
+  private sanitizeUserProfile(user: UserWithRoles): any {
+    const { password, createdById, updatedAt, ...sanitizedUser } = user;
+    const activeRoles = user.userRoles
+      .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()));
+    
+    const allPermissions = new Set<string>();
+    activeRoles.forEach(ur => {
+      if (Array.isArray(ur.role.permissions)) {
+        (ur.role.permissions as string[]).forEach(p => allPermissions.add(p));
+      }
+    });
+    
     return {
       ...sanitizedUser,
-      role: user.role.name,
-      permissions: Array.isArray(user.role.permissions) ? user.role.permissions as string[] : []
+      roles: activeRoles.map(ur => ur.role.name),
+      permissions: Array.from(allPermissions)
     };
   }
 
-  async validateToken(token: string): Promise<UserWithRole> {
+  async validateToken(token: string): Promise<UserWithRoles> {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as JwtPayload;
       
       const user = await (this.prisma as any).user.findUnique({
         where: { id: decoded.userId },
-        include: { role: true }
+        include: {
+          userRoles: {
+            where: { isActive: true },
+            include: { role: true }
+          }
+        }
       });
 
       if (!user || !user.isActive) {
@@ -219,13 +273,25 @@ export class UserService {
     }
   }
 
-  generateJwtToken(user: UserWithRole): string {
+  generateJwtToken(user: UserWithRoles): string {
+    const activeRoles = user.userRoles
+      .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()));
+    
+    const allPermissions = new Set<string>();
+    activeRoles.forEach(ur => {
+      if (Array.isArray(ur.role.permissions)) {
+        (ur.role.permissions as string[]).forEach(p => allPermissions.add(p));
+      }
+    });
+
     const payload: JwtPayload = {
       userId: user.id,
-      username: user.username,
-      roleId: user.role.id,
-      roleName: user.role.name,
-      permissions: Array.isArray(user.role.permissions) ? user.role.permissions as string[] : []
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      roleId: activeRoles[0]?.roleId || 1, // Primary role for backward compatibility
+      roleName: activeRoles[0]?.role.name || 'USER',
+      permissions: Array.from(allPermissions)
     };
 
     const secret = process.env.JWT_SECRET || 'your-secret-key';
@@ -233,10 +299,27 @@ export class UserService {
     return jwt.sign(payload, secret, { expiresIn: '24h' } as any);
   }
 
-  async getUserById(id: number): Promise<UserWithRole | null> {
+  async getUserById(id: number): Promise<UserWithRoles | null> {
     return (this.prisma as any).user.findUnique({
       where: { id },
-      include: { role: true }
+      include: {
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true }
+        }
+      }
+    });
+  }
+
+  async getUserByEmail(email: string): Promise<UserWithRoles | null> {
+    return (this.prisma as any).user.findUnique({
+      where: { email },
+      include: {
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true }
+        }
+      }
     });
   }
 
@@ -248,16 +331,14 @@ export class UserService {
     return this.sanitizeUserProfile(user);
   }
 
-  async getUserByUsername(username: string): Promise<UserWithRole | null> {
-    return (this.prisma as any).user.findUnique({
-      where: { username },
-      include: { role: true }
-    });
-  }
-
-  async getAllUsers(): Promise<UserWithRole[]> {
+  async getAllUsers(): Promise<UserWithRoles[]> {
     return (this.prisma as any).user.findMany({
-      include: { role: true },
+      include: {
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
   }
@@ -267,11 +348,8 @@ export class UserService {
     return users.map(user => this.sanitizeUserResponse(user));
   }
 
-  async updateUserRole(userId: number, newRoleId: number, updatedById: number): Promise<UserWithRole> {
-    const user = await (this.prisma as any).user.findUnique({
-      where: { id: userId },
-      include: { role: true }
-    });
+  async updateUserRole(userId: number, newRoleId: number, updatedById: number): Promise<UserWithRoles> {
+    const user = await this.getUserById(userId);
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -285,13 +363,26 @@ export class UserService {
       throw new NotFoundException('Role not found');
     }
 
-    const oldRole = user.role;
+    // Get current active roles for logging
+    const oldRoles = user.userRoles.map(ur => ur.role.name);
 
-    const updatedUser = await (this.prisma as any).user.update({
-      where: { id: userId },
-      data: { roleId: newRoleId },
-      include: { role: true }
+    // Deactivate old user roles
+    await (this.prisma as any).userRole.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false }
     });
+
+    // Add new role
+    await (this.prisma as any).userRole.create({
+      data: {
+        userId,
+        roleId: newRoleId,
+        assignedBy: updatedById,
+        isActive: true
+      }
+    });
+
+    const updatedUser = await this.getUserById(userId);
 
     // Log role change
     await this.logUserAction({
@@ -300,18 +391,15 @@ export class UserService {
       action: 'ROLE_CHANGE',
       entityType: 'USER',
       entityId: userId.toString(),
-      oldValues: { role: oldRole.name },
-      newValues: { role: newRole.name }
+      oldValues: { roles: oldRoles },
+      newValues: { roles: [newRole.name] }
     });
 
-    return updatedUser;
+    return updatedUser!;
   }
 
-  async deactivateUser(userId: number, deactivatedById: number): Promise<UserWithRole> {
-    const user = await (this.prisma as any).user.findUnique({
-      where: { id: userId },
-      include: { role: true }
-    });
+  async deactivateUser(userId: number, deactivatedById: number): Promise<UserWithRoles> {
+    const user = await this.getUserById(userId);
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -320,7 +408,12 @@ export class UserService {
     const updatedUser = await (this.prisma as any).user.update({
       where: { id: userId },
       data: { isActive: false },
-      include: { role: true }
+      include: {
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true }
+        }
+      }
     });
 
     // Log user deactivation
@@ -337,26 +430,31 @@ export class UserService {
     return updatedUser;
   }
 
-  hasPermission(user: UserWithRole, requiredPermission: string): boolean {
-    const permissions = Array.isArray(user.role.permissions) ? user.role.permissions as string[] : [];
+  hasPermission(user: UserWithRoles, requiredPermission: string): boolean {
+    const activeRoles = user.userRoles
+      .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()));
     
-    // Check for exact permission match
-    if (permissions.includes(requiredPermission)) {
-      return true;
-    }
-
-    // Check for wildcard permissions
-    const permissionParts = requiredPermission.split(':');
-    if (permissionParts.length === 2) {
-      const [resource] = permissionParts;
-      if (permissions.includes(`${resource}:*`)) {
+    for (const userRole of activeRoles) {
+      const permissions = Array.isArray(userRole.role.permissions) ? userRole.role.permissions as string[] : [];
+      
+      // Check for exact permission match
+      if (permissions.includes(requiredPermission)) {
         return true;
       }
-    }
 
-    // Check for global wildcard
-    if (permissions.includes('*')) {
-      return true;
+      // Check for wildcard permissions
+      const permissionParts = requiredPermission.split(':');
+      if (permissionParts.length === 2) {
+        const [resource] = permissionParts;
+        if (permissions.includes(`${resource}:*`)) {
+          return true;
+        }
+      }
+
+      // Check for global wildcard
+      if (permissions.includes('*')) {
+        return true;
+      }
     }
 
     return false;
@@ -371,17 +469,28 @@ export class UserService {
     return hierarchies[roleName] || 0;
   }
 
-  async canManageUser(managerUser: UserWithRole, targetUserId: number): Promise<boolean> {
+  async canManageUser(managerUser: UserWithRoles, targetUserId: number): Promise<boolean> {
     const targetUser = await this.getUserById(targetUserId);
     if (!targetUser) {
       return false;
     }
 
-    const managerLevel = await this.getRoleHierarchy(managerUser.role.name);
-    const targetLevel = await this.getRoleHierarchy(targetUser.role.name);
+    // Get highest role level for both users
+    const managerRoles = managerUser.userRoles
+      .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()));
+    const targetRoles = targetUser.userRoles
+      .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()));
+
+    const managerMaxLevel = Math.max(...await Promise.all(
+      managerRoles.map(ur => this.getRoleHierarchy(ur.role.name))
+    ));
+    
+    const targetMaxLevel = Math.max(...await Promise.all(
+      targetRoles.map(ur => this.getRoleHierarchy(ur.role.name))
+    ));
 
     // Manager must have higher or equal role level to manage target user
-    return managerLevel >= targetLevel;
+    return managerMaxLevel >= targetMaxLevel;
   }
 
   // Legacy method for backward compatibility

@@ -48,14 +48,17 @@ export class JwtAuthGuard implements CanActivate {
       // Check role requirements
       const requiredRoles = this.reflector.get<UserRole[]>('roles', context.getHandler());
       if (requiredRoles && requiredRoles.length > 0) {
-        const userRole = user.role.name as UserRole;
-        const hasRequiredRole = requiredRoles.some(role => 
-          this.userService.hasRole(userRole, role)
+        const userRoles = user.userRoles
+          .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()))
+          .map(ur => ur.role.name as UserRole);
+        
+        const hasRequiredRole = requiredRoles.some(requiredRole => 
+          userRoles.some(userRole => this.userService.hasRole(userRole, requiredRole))
         );
 
         if (!hasRequiredRole) {
           this.logger.warn(
-            `User ${user.username} with role ${user.role.name} attempted to access endpoint requiring roles: ${requiredRoles.join(', ')}`
+            `User ${user.firstName} ${user.lastName} (${user.email}) with roles [${userRoles.join(', ')}] attempted to access endpoint requiring roles: ${requiredRoles.join(', ')}`
           );
           throw new ForbiddenException('Insufficient permissions');
         }

@@ -4,14 +4,17 @@ export class UserResponseDto {
   @ApiProperty({ example: 1, description: 'User ID' })
   id: number;
 
-  @ApiProperty({ example: 'admin', description: 'Username' })
-  username: string;
+  @ApiProperty({ example: 'John', description: 'First name' })
+  firstName: string;
 
-  @ApiProperty({ example: 'admin@example.com', description: 'User email' })
+  @ApiProperty({ example: 'Doe', description: 'Last name' })
+  lastName: string;
+
+  @ApiProperty({ example: 'john.doe@example.com', description: 'User email' })
   email: string;
 
-  @ApiProperty({ example: 'ADMIN', description: 'User role name' })
-  role: string;
+  @ApiProperty({ example: ['ADMIN', 'USER'], description: 'User role names', type: [String] })
+  roles: string[];
 
   @ApiProperty({ example: true, description: 'Whether user is active' })
   isActive: boolean;
@@ -24,14 +27,38 @@ export class UserResponseDto {
 }
 
 export class LoginResponseDto {
+  @ApiProperty({ description: 'Access token' })
+  access_token: string;
+
   @ApiProperty({ type: UserResponseDto, description: 'User information' })
   user: UserResponseDto;
-
-  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', description: 'JWT access token' })
-  token: string;
 }
 
-export class ProfileResponseDto extends UserResponseDto {
-  @ApiProperty({ example: ['api_key:use', 'profile:read'], description: 'User permissions' })
+export class ProfileResponseDto {
+  @ApiProperty({ example: 1, description: 'User ID' })
+  id: number;
+
+  @ApiProperty({ example: 'John', description: 'First name' })
+  firstName: string;
+
+  @ApiProperty({ example: 'Doe', description: 'Last name' })
+  lastName: string;
+
+  @ApiProperty({ example: 'john.doe@example.com', description: 'User email' })
+  email: string;
+
+  @ApiProperty({ example: ['ADMIN', 'USER'], description: 'User role names', type: [String] })
+  roles: string[];
+
+  @ApiProperty({ example: ['users:read', 'users:write'], description: 'User permissions', type: [String] })
   permissions: string[];
+
+  @ApiProperty({ example: true, description: 'Whether user is active' })
+  isActive: boolean;
+
+  @ApiProperty({ example: '2023-01-01T00:00:00.000Z', description: 'Account creation date' })
+  createdAt: Date;
+
+  @ApiProperty({ example: '2023-01-01T00:00:00.000Z', description: 'Last login date', nullable: true })
+  lastLogin: Date | null;
 }
