@@ -7,6 +7,16 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v0.3.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -14,15 +24,71 @@ env:
   DOCKERHUB_IMAGE_NAME: llmmux/llmmux
 
 jobs:
-  release:
+  # Run tests with database before releasing
+  test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: llmmux_test
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
 
     steps:
     - name: 🛒 Checkout repository
       uses: actions/checkout@v4
+
+    - name: 🏗️ Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🗄️ Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: mysql://root:test_password@localhost:3306/llmmux_test
+
+    - name: 🧪 Run tests
+      run: npm test
+      env:
+        DATABASE_URL: mysql://root:test_password@localhost:3306/llmmux_test
+        JWT_SECRET: test-jwt-secret-for-release
+
+    - name: 🔍 Security audit
+      run: npm audit --audit-level=moderate
+
+    - name: 🎯 Lint code
+      run: npm run lint
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+    - name: 🛒 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 🛒 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: 🏗️ Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -40,6 +106,26 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+    - name: 🏷️ Extract version info
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+        else
+          VERSION="${{ github.ref_name }}"
+          # Check if this is a prerelease based on version string
+          if [[ "$VERSION" =~ -[a-zA-Z] ]]; then
+            PRERELEASE="true"
+          else
+            PRERELEASE="false"
+          fi
+        fi
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "prerelease=${PRERELEASE}" >> $GITHUB_OUTPUT
+        echo "tag=${VERSION}" >> $GITHUB_OUTPUT
+        echo "is_latest=${PRERELEASE}" >> $GITHUB_OUTPUT
+
     - name: 🏷️ Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -53,7 +139,8 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{major}}
-          type=raw,value=latest,enable=${{ !contains(github.ref, 'pre') && startsWith(github.ref, 'refs/tags/v') }}
+          type=raw,value=latest,enable=${{ steps.version.outputs.prerelease == 'false' && startsWith(github.ref, 'refs/tags/v') }}
+          type=raw,value=beta,enable=${{ steps.version.outputs.prerelease == 'true' }}
 
     - name: 🏗️ Build and push Docker image
       uses: docker/build-push-action@v5
@@ -65,11 +152,58 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha,scope=${{ github.ref }}
         cache-to: type=gha,mode=max,scope=${{ github.ref }}
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+
+    - name: 📝 Generate release notes
+      id: release_notes
+      run: |
+        # Check if release notes file exists for this version
+        VERSION_CLEAN=$(echo "${{ steps.version.outputs.version }}" | sed 's/^v//')
+        RELEASE_NOTES_FILE="docs/releases/RELEASE_NOTES_v${VERSION_CLEAN}.md"
+        
+        if [ -f "$RELEASE_NOTES_FILE" ]; then
+          echo "Found release notes file: $RELEASE_NOTES_FILE"
+          # Read the release notes and escape for GitHub output
+          RELEASE_NOTES=$(cat "$RELEASE_NOTES_FILE" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
+          echo "notes=${RELEASE_NOTES}" >> $GITHUB_OUTPUT
+          echo "has_notes=true" >> $GITHUB_OUTPUT
+        else
+          echo "No release notes file found for version $VERSION_CLEAN in docs/releases/"
+          echo "has_notes=false" >> $GITHUB_OUTPUT
+          # Generate basic release notes from commits
+          BASIC_NOTES="## What's Changed\\n\\n$(git log --oneline --since='1 month ago' --pretty=format:'- %s (%h)' | head -10)"
+          echo "notes=${BASIC_NOTES}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: 🚀 Create GitHub Release
+      if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        release_name: ${{ steps.version.outputs.tag }} Release
+        body: ${{ steps.release_notes.outputs.notes }}
+        draft: false
+        prerelease: ${{ steps.version.outputs.prerelease }}
 
     - name: 🎉 Release Notification
-      if: github.event_name == 'release'
       run: |
-        echo "🚀 LLMMux ${{ github.ref_name }} has been released!"
+        echo "🚀 vLLM Router ${{ steps.version.outputs.version }} has been released!"
+        echo ""
         echo "🧠 Docker images are now available at:"
-        echo "   📦 ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
-        echo "   🐳 llmmux/llmmux:${{ github.ref_name }}"
+        echo "   📦 ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+        echo "   🐳 llmmux/llmmux:${{ steps.version.outputs.version }}"
+        echo ""
+        echo "🔗 Key features in this release:"
+        if [ "${{ steps.release_notes.outputs.has_notes }}" = "true" ]; then
+          echo "   � Check the release notes for detailed information"
+        else
+          echo "   📊 Database-managed API keys"
+          echo "   🔐 JWT-based admin authentication"
+          echo "   🐳 Production-ready Docker deployment"
+        fi
+        echo ""
+        echo "📖 Documentation: https://github.com/${{ github.repository }}/blob/${{ steps.version.outputs.tag }}/README.md"
+        echo "🚀 Quick start: https://github.com/${{ github.repository }}/blob/${{ steps.version.outputs.tag }}/docs/DOCKER.md"

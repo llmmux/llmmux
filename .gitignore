@@ -2,13 +2,13 @@
 dist/
 node_modules/
 
-# Environment files (except example)
+# Environment files
+# Keep tracked: .env.example, .env.dev, .env.staging, .env.prod, .env.test
+# Ignore: .env (local), .env.local, .env.production (sensitive)
 .env
 .env.local
 .env.*.local
 .env.production
-.env.staging
-.env.caprover
 
 # Logs
 *.log

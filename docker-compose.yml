@@ -35,6 +35,10 @@ services:
       - DATABASE_URL=mysql://${MYSQL_USER:-llmmux_user}:${MYSQL_PASSWORD:-llmmux_password}@mysql:3306/${MYSQL_DATABASE:-llmmux}
       # JWT Authentication
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      # Admin User Configuration (REQUIRED for initial setup)
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@llmmux.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       # API Keys for backward compatibility (legacy auth)
       - API_KEYS=${API_KEYS:-sk-your-secret-key-1,sk-your-secret-key-2}
       # Backend Configuration
