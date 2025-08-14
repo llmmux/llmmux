@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios from "axios";
 import { BackendConfig, ModelInfo } from "../types";
@@ -10,7 +10,7 @@ interface VllmServerConfig {
 }
 
 @Injectable()
-export class ModelDiscoveryService implements OnModuleInit {
+export class ModelDiscoveryService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ModelDiscoveryService.name);
   private discoveredBackends: Map<string, BackendConfig> = new Map();
   private vllmServers: VllmServerConfig[] = [];
@@ -196,6 +196,10 @@ export class ModelDiscoveryService implements OnModuleInit {
       this.discoveryInterval = null;
       this.logger.log("Stopped periodic model discovery");
     }
+  }
+
+  onModuleDestroy() {
+    this.stopPeriodicDiscovery();
   }
 
   public getDiscoveredBackend(modelName: string): BackendConfig | undefined {
