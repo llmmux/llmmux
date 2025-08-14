@@ -6,7 +6,7 @@ import { ResponseTransformerService } from '../transformer/response-transformer.
 describe('ProxyService', () => {
   let service: ProxyService;
   let configService: ConfigurationService;
-  let transformerService: ResponseTransformerService;
+  let _transformerService: ResponseTransformerService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -30,7 +30,7 @@ describe('ProxyService', () => {
 
     service = module.get<ProxyService>(ProxyService);
     configService = module.get<ConfigurationService>(ConfigurationService);
-    transformerService = module.get<ResponseTransformerService>(ResponseTransformerService);
+    _transformerService = module.get<ResponseTransformerService>(ResponseTransformerService);
   });
 
   it('should be defined', () => {

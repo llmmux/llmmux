@@ -93,7 +93,7 @@ export class MetricsMiddleware implements NestMiddleware {
         if (parsed.model) {
           return parsed.model;
         }
-      } catch (e) {
+      } catch {
         // Ignore parsing errors
       }
     }
@@ -121,7 +121,7 @@ export class MetricsMiddleware implements NestMiddleware {
       try {
         const parsed = JSON.parse(responseBody);
         return parsed.usage?.total_tokens || 0;
-      } catch (e) {
+      } catch {
         return 0;
       }
     }

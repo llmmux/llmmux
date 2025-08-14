@@ -157,7 +157,7 @@ describe('ProxyController', () => {
       // We need to mock the controller method since it continues after the condition
       try {
         await controller.completions(mockRequest as any, mockResponse);
-      } catch (error) {
+      } catch {
         // Expected as the implementation continues
       }
 

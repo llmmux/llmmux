@@ -131,7 +131,7 @@ export class ResponseTransformerService {
       }
 
       if (Array.isArray(parsedTools)) {
-        parsedTools.forEach((tool, index) => {
+        parsedTools.forEach((tool, _index) => {
           // Handle both "parameters" and "arguments" keys
           const params = tool.parameters || tool.arguments;
           if (tool.name && params) {
