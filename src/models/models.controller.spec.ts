@@ -32,10 +32,11 @@ describe('ModelsController', () => {
   describe('getModels', () => {
     it('should return list of available models', () => {
       const mockModelNames = ['model-1', 'model-2'];
+      const mockRequest = { apiKey: 'test-api-key' };
 
       (configurationService.getAllModelNames as jest.Mock).mockReturnValue(mockModelNames);
 
-      const result = controller.getModels();
+      const result = controller.getModels(mockRequest);
 
       expect(result).toEqual({
         object: 'list',
@@ -58,9 +59,10 @@ describe('ModelsController', () => {
     });
 
     it('should return empty list when no models available', () => {
+      const mockRequest = { apiKey: 'test-api-key' };
       (configurationService.getAllModelNames as jest.Mock).mockReturnValue([]);
 
-      const result = controller.getModels();
+      const result = controller.getModels(mockRequest);
 
       expect(result).toEqual({
         object: 'list',
@@ -70,20 +72,22 @@ describe('ModelsController', () => {
     });
 
     it('should handle service errors', () => {
+      const mockRequest = { apiKey: 'test-api-key' };
       (configurationService.getAllModelNames as jest.Mock).mockImplementation(() => {
         throw new Error('Service error');
       });
 
-      expect(() => controller.getModels()).toThrow('Service error');
+      expect(() => controller.getModels(mockRequest)).toThrow('Service error');
     });
 
     it('should create models with correct timestamps', () => {
       const mockModelNames = ['test-model'];
+      const mockRequest = { apiKey: 'test-api-key' };
 
       (configurationService.getAllModelNames as jest.Mock).mockReturnValue(mockModelNames);
 
       const beforeCall = Math.floor(Date.now() / 1000);
-      const result = controller.getModels();
+      const result = controller.getModels(mockRequest);
       const afterCall = Math.floor(Date.now() / 1000);
 
       expect(result.data[0].created).toBeGreaterThanOrEqual(beforeCall);

@@ -95,52 +95,10 @@ describe('ConfigurationService', () => {
     });
   });
 
-  describe('parseApiKeys', () => {
-    it('should parse valid API keys', () => {
-      const mockGet = jest.fn()
-        .mockReturnValueOnce('')
-        .mockReturnValueOnce('key1,key2,key3');
-      
-      (configService.get as jest.Mock) = mockGet;
-      
-      const testService = new ConfigurationService(configService, modelDiscoveryService);
-      
-      expect(testService.isValidApiKey('key1')).toBe(true);
-      expect(testService.isValidApiKey('key2')).toBe(true);
-      expect(testService.isValidApiKey('invalid')).toBe(false);
-    });
-
-    it('should allow all requests when no API keys configured', () => {
-      const mockGet = jest.fn()
-        .mockReturnValueOnce('')
-        .mockReturnValueOnce('');
-      
-      (configService.get as jest.Mock) = mockGet;
-      
-      const testService = new ConfigurationService(configService, modelDiscoveryService);
-      
-      expect(testService.isValidApiKey('any-key')).toBe(true);
-    });
-
-    it('should handle whitespace in API keys', () => {
-      const mockGet = jest.fn()
-        .mockReturnValueOnce('')
-        .mockReturnValueOnce(' key1 , key2 , key3 ');
-      
-      (configService.get as jest.Mock) = mockGet;
-      
-      const testService = new ConfigurationService(configService, modelDiscoveryService);
-      
-      expect(testService.isValidApiKey('key1')).toBe(true);
-      expect(testService.isValidApiKey(' key1 ')).toBe(false);
-    });
-  });
-
   describe('getBackendForModel', () => {
     beforeEach(() => {
       const mockGet = jest.fn()
-        .mockReturnValueOnce('static:localhost:8001')
-        .mockReturnValueOnce('test-key');
+        .mockReturnValueOnce('static:localhost:8001');
       
       (configService.get as jest.Mock) = mockGet;
     });

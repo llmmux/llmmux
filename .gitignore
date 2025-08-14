@@ -113,3 +113,5 @@ captain-definition
 test-results/
 coverage/
 .nyc_output
+
+/generated/prisma

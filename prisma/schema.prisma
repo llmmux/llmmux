@@ -1,0 +1,153 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Role management system
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(50)  // USER, ADMIN, SUPER_ADMIN
+  description String?  @db.Text
+  permissions Json?    // Array of permissions/capabilities
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  users       User[]
+  
+  @@map("roles")
+}
+
+// User management and authentication
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique @db.VarChar(50)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)  // Hashed password
+  roleId    Int      @default(1)       // Foreign key to Role (default: USER role)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLogin DateTime?
+  createdById Int?    // Who created this user (for audit trail)
+  
+  // Relations
+  role           Role     @relation(fields: [roleId], references: [id])
+  createdBy      User?    @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers   User[]   @relation("UserCreatedBy")
+  createdApiKeys ApiKey[] @relation("CreatedBy")
+  userLogs       UserLog[]
+  
+  @@map("users")
+}
+
+// User activity and management audit log
+model UserLog {
+  id          BigInt    @id @default(autoincrement())
+  userId      Int       // User being acted upon
+  actionBy    Int?      // User performing the action (null for system actions)
+  action      String    @db.VarChar(100)  // LOGIN, LOGOUT, CREATE, UPDATE, DELETE, ROLE_CHANGE, etc.
+  entityType  String?   @db.VarChar(50)   // USER, API_KEY, ROLE, etc.
+  entityId    String?   @db.VarChar(100)  // ID of the entity being acted upon
+  oldValues   Json?     // Previous values (for updates)
+  newValues   Json?     // New values (for creates/updates)
+  ipAddress   String?   @db.VarChar(45)   // IPv4/IPv6 address
+  userAgent   String?   @db.Text          // Browser/client info
+  success     Boolean   @default(true)
+  errorMessage String?  @db.Text
+  timestamp   DateTime  @default(now())
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id])
+  
+  @@index([userId, timestamp])
+  @@index([action, timestamp])
+  @@index([timestamp])
+  @@map("user_logs")
+}
+
+model ApiKey {
+  id              Int                 @id @default(autoincrement())
+  key             String              @unique @db.VarChar(255)
+  name            String              @db.VarChar(255)
+  description     String?             @db.Text
+  owner           String?             @db.VarChar(255)
+  tags            Json?               // Array of strings
+  rateLimitRpm    Int?                // Requests per minute
+  rateLimitRpd    Int?                // Requests per day
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  createdById     Int?                // Foreign key to User
+  
+  // Relations
+  createdBy       User?               @relation("CreatedBy", fields: [createdById], references: [id])
+  permissions     ApiKeyPermission?
+  metrics         ApiKeyMetric[]
+  requestLogs     RequestLog[]
+  
+  @@map("api_keys")
+}
+
+model ApiKeyPermission {
+  id            Int      @id @default(autoincrement())
+  apiKeyId      Int      @unique
+  allowAll      Boolean  @default(true)
+  allowedModels Json?    // Array of allowed model names
+  deniedModels  Json?    // Array of denied model names (optional)
+  
+  // Relations
+  apiKey        ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  
+  @@map("api_key_permissions")
+}
+
+model ApiKeyMetric {
+  id                   Int      @id @default(autoincrement())
+  apiKeyId             Int
+  modelName            String   @db.VarChar(255)
+  totalRequests        Int      @default(0)
+  successfulRequests   Int      @default(0)
+  failedRequests       Int      @default(0)
+  totalTokens          BigInt   @default(0)
+  totalResponseTimeMs  BigInt   @default(0)
+  lastRequestAt        DateTime?
+  
+  // Relations
+  apiKey               ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  
+  @@unique([apiKeyId, modelName])
+  @@index([apiKeyId])
+  @@index([modelName])
+  @@map("api_key_metrics")
+}
+
+model RequestLog {
+  id               BigInt   @id @default(autoincrement())
+  apiKeyId         Int
+  modelName        String   @db.VarChar(255)
+  success          Boolean
+  tokens           Int      @default(0)
+  responseTimeMs   Int      @default(0)
+  requestPath      String?  @db.VarChar(500)
+  statusCode       Int?
+  errorMessage     String?  @db.Text
+  requestTimestamp DateTime @default(now())
+  
+  // Relations
+  apiKey           ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  
+  @@index([apiKeyId, requestTimestamp])
+  @@index([modelName, requestTimestamp])
+  @@index([requestTimestamp])
+  @@map("request_logs")
+}

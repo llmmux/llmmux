@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProxyController } from './proxy.controller';
 import { ProxyService } from './proxy.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { ApiKeyService } from '../auth/api-key.service';
 import { ConfigurationService } from '../config/configuration.service';
 import { Reflector } from '@nestjs/core';
 import { Response } from 'express';
@@ -28,9 +29,18 @@ describe('ProxyController', () => {
           },
         },
         {
-          provide: ConfigurationService,
+          provide: ApiKeyService,
           useValue: {
             isValidApiKey: jest.fn(),
+            recordKeyUsage: jest.fn(),
+            hasModelAccess: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigurationService,
+          useValue: {
+            getBackendForModel: jest.fn(),
+            getAllBackends: jest.fn(),
           },
         },
         {
