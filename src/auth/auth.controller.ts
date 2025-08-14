@@ -6,12 +6,17 @@ import { JwtAuthGuard, Roles } from './jwt-auth.guard';
 import { LoginResponseDto, UserResponseDto, ProfileResponseDto } from './dto/auth-response.dto';
 
 class CreateUserRequestDto implements CreateUserDto {
-  @ApiProperty({ description: 'Username (3-50 characters)', example: 'admin' })
+  @ApiProperty({ description: 'First name', example: 'John' })
   @IsString()
-  @MinLength(3)
-  username: string;
+  @MinLength(2)
+  firstName: string;
 
-  @ApiProperty({ description: 'Email address', example: 'admin@example.com' })
+  @ApiProperty({ description: 'Last name', example: 'Doe' })
+  @IsString()
+  @MinLength(2)
+  lastName: string;
+
+  @ApiProperty({ description: 'Email address', example: 'john.doe@example.com' })
   @IsEmail()
   email: string;
 
@@ -32,9 +37,12 @@ class CreateUserRequestDto implements CreateUserDto {
 }
 
 class LoginRequestDto implements LoginDto {
-  @ApiProperty({ description: 'Username', example: 'admin' })
-  @IsString()
-  username: string;
+  @ApiProperty({ 
+    description: 'Email address', 
+    example: 'admin@llmmux.com'
+  })
+  @IsEmail()
+  email: string;
 
   @ApiProperty({ description: 'Password', example: 'securepassword123' })
   @IsString()
@@ -60,15 +68,18 @@ export class AuthController {
     description: 'User created successfully',
     type: UserResponseDto
   })
-  @ApiResponse({ status: 409, description: 'Username or email already exists' })
+  @ApiResponse({ status: 409, description: 'Email already exists' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   async register(@Body(ValidationPipe) createUserDto: CreateUserRequestDto): Promise<UserResponseDto> {
     const user = await this.userService.createUser(createUserDto);
     return {
       id: user.id,
-      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
-      role: user.role.name,
+      roles: user.userRoles
+        .filter(ur => ur.isActive && (!ur.expiresAt || ur.expiresAt > new Date()))
+        .map(ur => ur.role.name),
       isActive: user.isActive,
       createdAt: user.createdAt,
       lastLogin: user.lastLogin
