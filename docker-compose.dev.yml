@@ -1,6 +1,28 @@
 version: '3.8'
 
 services:
+  # MySQL Database for development
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: dev_root_password
+      MYSQL_DATABASE: llmmux_dev
+      MYSQL_USER: llmmux_dev
+      MYSQL_PASSWORD: dev_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ./prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdev_root_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - llmmux-dev-network
+
   llmmux:
     build:
       context: .
@@ -10,12 +32,19 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=8080
+      - DATABASE_URL=mysql://llmmux_dev:dev_password@mysql:3306/llmmux_dev
+      - JWT_SECRET=dev-jwt-secret-key
     env_file:
       - .env.development
     volumes:
       - .:/workspace
       - /workspace/node_modules
-    command: npm run start:dev
+    command: >
+      sh -c "
+        npm run prisma:generate &&
+        npm run prisma:deploy &&
+        npm run start:dev
+      "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
@@ -23,8 +52,14 @@ services:
       retries: 3
       start_period: 40s
     depends_on:
-      - vllm-server-1
-      - vllm-server-2
+      mysql:
+        condition: service_healthy
+      vllm-server-1:
+        condition: service_started
+      vllm-server-2:
+        condition: service_started
+    networks:
+      - llmmux-dev-network
 
   # Mock vLLM servers for development
   vllm-server-1:
@@ -38,6 +73,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    networks:
+      - llmmux-dev-network
 
   vllm-server-2:
     image: nginx:alpine
@@ -50,3 +87,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    networks:
+      - llmmux-dev-network
+
+volumes:
+  mysql_dev_data:
+    driver: local
+
+networks:
+  llmmux-dev-network:
+    driver: bridge

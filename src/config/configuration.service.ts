@@ -7,14 +7,12 @@ import { ModelDiscoveryService } from "./model-discovery.service";
 export class ConfigurationService {
   private readonly logger = new Logger(ConfigurationService.name);
   private backends: Map<string, BackendConfig> = new Map();
-  private apiKeys: Set<string> = new Set();
 
   constructor(
-    private configService: ConfigService,
-    private modelDiscoveryService: ModelDiscoveryService,
+    private readonly configService: ConfigService,
+    private readonly modelDiscoveryService: ModelDiscoveryService,
   ) {
     this.parseBackends();
-    this.parseApiKeys();
   }
 
   private parseBackends(): void {
@@ -47,28 +45,6 @@ export class ConfigurationService {
         `Configured backend: ${config.modelName} -> ${config.baseUrl}`,
       );
     }
-  }
-
-  private parseApiKeys(): void {
-    const apiKeysConfig = this.configService.get<string>("API_KEYS", "");
-
-    if (!apiKeysConfig) {
-      this.logger.warn(
-        "No API_KEYS configuration found - authentication disabled",
-      );
-      return;
-    }
-
-    const keys = apiKeysConfig.split(",");
-
-    for (const key of keys) {
-      const trimmedKey = key.trim();
-      if (trimmedKey) {
-        this.apiKeys.add(trimmedKey);
-      }
-    }
-
-    this.logger.log(`Configured ${this.apiKeys.size} API keys`);
   }
 
   getBackendForModel(modelName: string): BackendConfig | undefined {
@@ -111,14 +87,6 @@ export class ConfigurationService {
     // Combine and deduplicate model names
     const allModels = new Set([...staticModels, ...discoveredModels]);
     return Array.from(allModels);
-  }
-
-  isValidApiKey(apiKey: string): boolean {
-    if (this.apiKeys.size === 0) {
-      // If no API keys configured, allow all requests
-      return true;
-    }
-    return this.apiKeys.has(apiKey);
   }
 
   getPort(): number {

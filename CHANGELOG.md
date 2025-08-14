@@ -5,7 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2025-08-12
+## [0.3.0] - 2025-08-14
+
+### Breaking Changes
+- **Removed Legacy API Key Support**: Static `API_KEYS` environment variable no longer supported
+  - All authentication now uses database-managed API keys only
+  - Admin interface required for API key management
+  - Enhanced security with JWT tokens for admin authentication
+
+### Added
+- **Complete Database Authentication System**
+  - MySQL database integration with Prisma ORM
+  - JWT-based admin authentication
+  - Dynamic API key management with advanced features:
+    - Expiration dates and automatic cleanup
+    - Rate limiting (requests per minute/day)
+    - Model-specific permissions
+    - Usage tracking and analytics
+    - Owner management and tagging
+- **Docker Compose Setup**
+  - Production-ready MySQL database configuration
+  - Automated database migrations
+  - Health checks and proper networking
+  - Volume persistence for database data
+
+### Enhanced
+- Authentication guard now async for better performance
+- Comprehensive API key validation and permissions
+- Admin dashboard capabilities for user and key management
+- Complete Docker deployment documentation
+
+### Removed
+- Static API key configuration (`API_KEYS` environment variable)
+- Legacy authentication fallback mechanisms
+- Related configuration service methods
+
+## [0.2.0] - 2025-08-12
 
 ### Added
 - **Auto-Discovery Feature**: Automatic model discovery from vLLM servers
@@ -28,10 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated TypeScript types and interfaces
 - Comprehensive test coverage for new features
 
-## [1.0.0] - 2025-08-12
+## [0.1.0] - 2025-08-12
 
 ### Added
-- Initial release of LLMMux
+- Initial pre-release of LLMMux
 - LLM multiplexer and proxy with OpenAI-compatible API
 - Support for vLLM servers with streaming and non-streaming responses
 - Function calling support with automatic transformation for GPT-OSS models

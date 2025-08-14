@@ -18,12 +18,17 @@ A production-ready LLM multiplexer and proxy that provides an OpenAI-compatible 
 
 - **OpenAI-Compatible API**: Full compatibility with OpenAI's chat completions and models endpoints
 - **Multi-Backend Support**: Support for various OpenAI-compatible LLM engines and providers
+- **Advanced Authentication**: JWT-based user authentication with role-based access control (USER, ADMIN, SUPER_ADMIN)
+- **User Management**: Complete user registration, login, and profile management system
+- **API Key Management**: Create and manage API keys with rate limiting and permissions
+- **Database Integration**: MySQL/PostgreSQL support for user data and audit logging
 - **Function Calling Support**: Native function calling support (tested with Qwen models) + automatic transformation for GPT-OSS models (work in progress)
 - **Streaming & Non-Streaming**: Supports both real-time streaming and standard responses
 - **Health Monitoring**: Built-in health checks for all backend servers
-- **Bearer Token Authentication**: Secure API key-based authentication
+- **Legacy Auth Support**: Backward compatibility with Bearer token authentication
 - **CORS Support**: Configurable cross-origin resource sharing
-- **Production-Ready**: Optimized Docker build with health checks and security
+- **Production-Ready**: Optimized Docker build with health checks, database migrations, and security
+- **Audit Logging**: Complete request and user activity logging
 - **Comprehensive Testing**: 78 unit tests with 8 test suites covering all major components
 
 ## 🏗️ Architecture
@@ -212,12 +217,44 @@ Requests are automatically routed to the correct backend server based on the mod
 
 ## 🚀 Deployment
 
-### Docker Compose
+### Quick Start with Authentication
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/llmmux/llmmux.git
+cd llmmux
+
+# 2. Setup and deploy with authentication
+./scripts/deploy.sh setup    # Setup environment and build
+./scripts/deploy.sh start    # Start all services
+./scripts/deploy.sh admin    # Create admin user
+
+# 3. Login and get JWT token
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your-password"}'
+```
+
+### Docker Compose (Production)
 
 ```yaml
 version: '3.8'
 
 services:
+  # MySQL Database for authentication
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: secure_root_password
+      MYSQL_DATABASE: llmmux
+      MYSQL_USER: llmmux_user
+      MYSQL_PASSWORD: secure_user_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - llmmux-network
+
+  # LLMMux with Authentication
   llmmux:
     image: llmmux:latest
     ports:
@@ -225,21 +262,73 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - API_KEYS=your-secret-key-1,your-secret-key-2
-      # Option 1: Manual backend configuration
-      - BACKENDS=model-name:host:port,another-model:host:port
-      # Option 2: Auto-discovery (recommended)
-      # - VLLM_SERVERS=vllm-server-1:8000,vllm-server-2:8001
+      # Database for authentication
+      - DATABASE_URL=mysql://llmmux_user:secure_user_password@mysql:3306/llmmux
+      # JWT authentication
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      # Legacy API keys (optional)
+      - API_KEYS=sk-your-secret-key-1,sk-your-secret-key-2
+      # vLLM backends
+      - VLLM_SERVERS=vllm-server-1:8000,vllm-server-2:8000
       - ENABLE_CORS=true
       - CORS_ORIGIN=*
-      - HEALTH_CHECK_INTERVAL=30000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - llmmux-network
+
+volumes:
+  mysql_data:
+networks:
+  llmmux-network:
+```
+
+### Authentication Methods
+
+LLMMux now supports multiple authentication methods:
+
+1. **JWT Authentication** (Recommended)
+   ```bash
+   # Login to get token
+   curl -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "admin", "password": "password"}'
+   
+   # Use token for API requests
+   curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://localhost:8080/v1/models
+   ```
+
+2. **Legacy API Keys** (Backward compatibility)
+   ```bash
+   curl -H "Authorization: Bearer sk-your-secret-key-1" \
+     http://localhost:8080/v1/models
+   ```
+
+### User Management
+
+```bash
+# Create admin user
+./scripts/deploy.sh admin
+
+# Or manually
+docker-compose exec llmmux npm run create-admin
+
+# View users (admin only)
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:8080/auth/users
+
+# Create new user (admin only)
+curl -X POST http://localhost:8080/auth/register \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "newuser",
+    "email": "user@example.com",
+    "password": "secure-password",
+    "role": "USER"
+  }'
 ```
 
 ### Kubernetes

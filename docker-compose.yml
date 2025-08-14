@@ -1,6 +1,29 @@
 version: '3.8'
 
 services:
+  # MySQL Database for authentication and user management
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-llmmux_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-llmmux}
+      MYSQL_USER: ${MYSQL_USER:-llmmux_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-llmmux_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-llmmux_root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - llmmux-network
+
   llmmux:
     image: llmmux:latest
     ports:
@@ -8,14 +31,22 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - API_KEYS=your-secret-key-1,your-secret-key-2
+      # Database Configuration
+      - DATABASE_URL=mysql://${MYSQL_USER:-llmmux_user}:${MYSQL_PASSWORD:-llmmux_password}@mysql:3306/${MYSQL_DATABASE:-llmmux}
+      # JWT Authentication
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      # API Keys for backward compatibility (legacy auth)
+      - API_KEYS=${API_KEYS:-sk-your-secret-key-1,sk-your-secret-key-2}
+      # Backend Configuration
       # Option 1: Manual backend configuration
-      - BACKENDS=model-name:host:port,another-model:host:port
+      - BACKENDS=${BACKENDS:-model-name:vllm-server-1:8000,another-model:vllm-server-2:8000}
       # Option 2: Auto-discovery (recommended)
-      # - VLLM_SERVERS=vllm-server-1:8000,vllm-server-2:8001
-      - ENABLE_CORS=true
-      - CORS_ORIGIN=*
-      - HEALTH_CHECK_INTERVAL=30000
+      - VLLM_SERVERS=${VLLM_SERVERS:-vllm-server-1:8000,vllm-server-2:8000}
+      # CORS Configuration
+      - ENABLE_CORS=${ENABLE_CORS:-true}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      # Health Check Configuration
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-30000}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
@@ -24,28 +55,46 @@ services:
       start_period: 40s
     restart: unless-stopped
     depends_on:
-      - vllm-server-1
-      - vllm-server-2
+      mysql:
+        condition: service_healthy
+      vllm-server-1:
+        condition: service_started
+      vllm-server-2:
+        condition: service_started
+    networks:
+      - llmmux-network
 
   # Example vLLM servers (uncomment and configure as needed)
-  # vllm-server-1:
-  #   image: vllm/vllm-openai:latest
-  #   ports:
-  #     - "8000:8000"
-  #   command: ["--model", "microsoft/DialoGPT-medium", "--host", "0.0.0.0", "--port", "8000"]
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  vllm-server-1:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8000:8000"
+    command: ["--model", "microsoft/DialoGPT-medium", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - llmmux-network
 
-  # vllm-server-2:
-  #   image: vllm/vllm-openai:latest
-  #   ports:
-  #     - "8001:8001"
-  #   command: ["--model", "gpt2", "--host", "0.0.0.0", "--port", "8001"]
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8001/v1/models"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  vllm-server-2:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8001:8001"
+    command: ["--model", "gpt2", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - llmmux-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  llmmux-network:
+    driver: bridge
