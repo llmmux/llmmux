@@ -1,6 +1,6 @@
-# Contributing Environment Setup
+# Development Environment Setup
 
-This guide helps contributors set up their local development environment.
+This guide helps contributors set up their local development environment for LLMMux.
 
 ## Local Development Setup
 
